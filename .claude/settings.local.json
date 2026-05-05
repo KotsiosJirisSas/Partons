@@ -7,7 +7,8 @@
       "Bash(python test_Uc_limits.py)",
       "Bash(python -c ' *)",
       "Bash(python slave_rotor_isotropic.py)",
-      "Bash(python test_fig7_georges.py)"
+      "Bash(python test_fig7_georges.py)",
+      "Bash(python run.py)"
     ]
   }
 }

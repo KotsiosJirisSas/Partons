@@ -1,3 +1,4 @@
 Figures/Temp/
-__pycache__
+__pycache__/
 *.pyc
+*.py[cod]
