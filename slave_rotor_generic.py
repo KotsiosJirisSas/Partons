@@ -177,6 +177,14 @@ def solve_generic_MF(pars):
     if not (0.0 <= alpha <= 1.0):
         raise ValueError(f"alpha must be in [0, 1], got alpha={alpha}.")
 
+    # n_coarse_h / tol_h: control cost of the rotor h-solve.
+    # <L>(h) is strictly monotone so only ONE root exists; a small coarse
+    # grid (9 points) always brackets it.  Then brentq refines to tol_h.
+    # For alpha<1 each eval costs an eigsh on (2M+1)^3 — keep both small.
+    # Resolved AFTER build_rotor_precomp so we know is_isotropic.
+    _n_coarse_h_pars = pars.get('n_coarse_h', None)
+    _tol_h_pars      = pars.get('tol_h',      None)
+
     # ------------------------------------------------------------------
     # Beta = inf check
     # ------------------------------------------------------------------
@@ -195,6 +203,23 @@ def solve_generic_MF(pars):
     # ------------------------------------------------------------------
     precomp = build_rotor_precomp(U, alpha, M_trunc)
     dos     = _DOS_precomp(t_perp)
+
+    # Resolve n_coarse_h and tol_h now that we know is_isotropic.
+    if _n_coarse_h_pars is not None:
+        n_coarse_h = int(_n_coarse_h_pars)
+    else:
+        # 1D rotor is cheap — use full n_coarse.
+        # 3D rotor: each coarse point = one eigsh; 9 points always brackets
+        # the unique root of the monotone function <L>(h).
+        n_coarse_h = n_coarse if precomp.is_isotropic else 9
+
+    if _tol_h_pars is not None:
+        tol_h = float(_tol_h_pars)
+    else:
+        # 1D rotor: use the same tight tolerance as the outer loop.
+        # 3D rotor: loosen to 1e-2 so brentq stops after ~log2(40/0.01)~12
+        # eigsh calls instead of ~22.  The outer loop corrects residual error.
+        tol_h = tol if precomp.is_isotropic else max(tol, 1e-2)
 
     # Observable indices:
     #   alpha=1: obs_diags = (L, L^2)         -> indices (0, 1)
@@ -316,8 +341,8 @@ def solve_generic_MF(pars):
             return 0.0
 
         sols_h = solve_sc(eval_L_rot, zero, beta,
-                          h_window=h_window, n_coarse=n_coarse,
-                          tol=tol, verbose=False)
+                          h_window=h_window, n_coarse=n_coarse_h,
+                          tol=tol_h, verbose=False)
         sol_h  = pick_solution(sols_h, h_old, label="h-solve")
         h      = sol_h['h']
 
@@ -591,21 +616,31 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------
     # Solver settings (shared)
     # ------------------------------------------------------------------
+    # Runtime notes for the 3D rotor (alpha < 1):
+    #   dim = (2*M_trunc+1)^3.  Each coarse-grid eigsh ~15 ms (M=4) to
+    #   ~60 ms (M=5) to ~500 ms (M=8).  Per outer iteration the h-solve
+    #   costs (n_coarse_h + ~12 brentq) eigsh calls; defaults keep this to
+    #   ~0.3 s (M=4) or ~1.3 s (M=5) per outer iteration.
+    #
+    # For qualitative benchmarking M_trunc=4 is sufficient.
+    # For production calculations use M_trunc=8+ and run overnight / in parallel.
     SHARED_PARS = {
-        'density':    DENS,
-        'N':          N,
-        'beta':       100.0,    # finite T for fast demonstration
-        't_perp':     None,
-        'K_init':     2.0,
-        'M_trunc':    6,        # keep 3D Hilbert space small: dim=(13)^3=2197
-        'mixing':     0.5,
-        'iterations': 400,
-        'tol':        1e-8,
-        'h_window':   20.0,
-        'eps_window': 20.0,
-        'n_coarse':   51,
-        'n_eigs':     30,
-        'verbose':    0,
+        'density':     DENS,
+        'N':           N,
+        'beta':        100.0,   # finite T for fast demonstration
+        't_perp':      None,
+        'K_init':      2.0,
+        'M_trunc':     4,       # 3D dim = (9)^3 = 729;  ~15 ms per eigsh
+        'mixing':      0.5,
+        'iterations':  30,      # enough to converge at beta=100
+        'tol':         1e-7,
+        'h_window':    20.0,
+        'eps_window':  20.0,
+        'n_coarse':    51,      # for the cheap spinon eps-solve
+        # n_coarse_h defaults to 9 for alpha<1 (auto)
+        # tol_h       defaults to 1e-2 for alpha<1 (auto)
+        'n_eigs':      15,
+        'verbose':     0,
     }
 
     # ------------------------------------------------------------------
@@ -619,7 +654,9 @@ if __name__ == '__main__':
         print()
         print("=" * 65)
         print(f"  alpha = {alpha}  (beta=100, n={DENS:.4f}, flat DOS)")
-        print(f"  Hilbert-space dim = {(2*SHARED_PARS['M_trunc']+1)**(1 if alpha==1.0 else 3)}")
+        M = SHARED_PARS['M_trunc']
+        dim_str = f"{2*M+1}" if alpha == 1.0 else f"({2*M+1})^3 = {(2*M+1)**3}"
+        print(f"  Hilbert-space dim = {dim_str}")
         print(f"  Linearised U_c = {Uc_theory:.4f}")
         print("=" * 65)
         print(f"  {'U':>6}  {'Z':>9}  {'Q':>10}  {'K':>10}  {'eps_0':>10}  {'h':>10}  conv")
