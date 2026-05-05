@@ -1,2 +1,3 @@
 Figures/Temp/
-
+__pycache__/
+*.pyc
