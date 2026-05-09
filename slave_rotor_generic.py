@@ -211,7 +211,7 @@ def solve_generic_MF(pars):
         # 1D rotor is cheap — use full n_coarse.
         # 3D rotor: each coarse point = one eigsh; 9 points always brackets
         # the unique root of the monotone function <L>(h).
-        n_coarse_h = n_coarse if precomp.is_isotropic else 9
+        n_coarse_h = n_coarse if precomp.is_isotropic else 7
 
     if _tol_h_pars is not None:
         tol_h = float(_tol_h_pars)

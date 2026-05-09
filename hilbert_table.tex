@@ -1,0 +1,381 @@
+% =============================================================================
+%  hilbert_table.tex
+%  Stand-alone table of all 64 local Hilbert-space states for the
+%  N = 6  (three-valley, two-spin) slave-rotor model,
+%  together with their spinon--rotor decomposition in the diagonal angle basis.
+% =============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{amsmath,amssymb}
+\usepackage{longtable,booktabs,array}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{microtype}
+
+\geometry{top=2.2cm, bottom=2.5cm, left=2.2cm, right=2.2cm}
+
+% ---- convenient shorthands --------------------------------------------------
+\newcommand{\ua}{\uparrow}
+\newcommand{\da}{\downarrow}
+\newcommand{\ket}[1]{\left|#1\right\rangle}
+\newcommand{\empt}{\ket{\emptyset}}
+\newcommand{\ddag}{d^{\dagger}}
+\newcommand{\fdag}{f^{\dagger}}
+% Physical creation operators (compact)
+\newcommand{\dA}[2]{\ddag_{#1#2}}   % \dA{0}{\ua}  ->  d^†_{0↑}
+\newcommand{\fA}[2]{\fdag_{#1#2}}
+
+% =============================================================================
+\begin{document}
+
+\section*{Local Hilbert space and slave-rotor decomposition\\[4pt]
+          \large Three-valley model ($N=6$, valleys $\eta\in\{0,1,2\}$,
+          spins $s\in\{\ua,\da\}$)}
+
+% ---------------------------------------------------------------------------
+\subsection*{Slave-rotor representation}
+
+The physical electron operator is written as
+\begin{equation}
+  d^{\dagger}_{\eta s}
+  \;=\;
+  f^{\dagger}_{\eta s}\,e^{i\varphi_\eta},
+  \label{eq:slaverot}
+\end{equation}
+where $f^{\dagger}_{\eta s}$ is a charge-neutral spinon (slave fermion) and
+$e^{i\varphi_\eta}$ raises the angular momentum of the $\eta$-th valley rotor
+by one unit ($l_\eta\to l_\eta+1$).
+
+% ---------------------------------------------------------------------------
+\subsection*{Diagonal angle basis}
+
+Introduce total and relative angular momenta
+\begin{equation}
+  L \;=\; l_0+l_1+l_2, \qquad
+  L_+ \;=\; l_0+l_1-2l_2, \qquad
+  L_- \;=\; l_0-l_1,
+  \label{eq:Lbasis}
+\end{equation}
+with $l_\eta = n_\eta - 1$ and $n_\eta = n_{\eta\ua}+n_{\eta\da}$.
+These diagonalise the on-site Coulomb interaction:
+\begin{equation}
+  H_{\rm int}
+  \;=\;
+  \frac{U}{6}(1+2\alpha)\,L^2
+  \;+\;
+  \frac{U}{12}(1-\alpha)\,L_+^2
+  \;+\;
+  \frac{U}{4}(1-\alpha)\,L_-^2.
+\end{equation}
+
+The angles $\theta,\,\theta_+,\,\theta_-$ conjugate to $L,\,L_+,\,L_-$
+(satisfying $[L,\theta]=i$, $[L_+,\theta_+]=i$, $[L_-,\theta_-]=i$) are
+related to the original valley angles $\varphi_0,\varphi_1,\varphi_2$ by
+\begin{equation}
+  \varphi_0 \;=\; \theta+\theta_++\theta_-,\qquad
+  \varphi_1 \;=\; \theta+\theta_+-\theta_-,\qquad
+  \varphi_2 \;=\; \theta-2\theta_+.
+  \label{eq:angles}
+\end{equation}
+Substituting \eqref{eq:angles} into \eqref{eq:slaverot}:
+\begin{align}
+  d^{\dagger}_{0,s}
+  &\;=\;
+  f^{\dagger}_{0,s}\,e^{i(\theta+\theta_++\theta_-)}, \\[4pt]
+  d^{\dagger}_{1,s}
+  &\;=\;
+  f^{\dagger}_{1,s}\,e^{i(\theta+\theta_+-\theta_-)}, \\[4pt]
+  d^{\dagger}_{2,s}
+  &\;=\;
+  f^{\dagger}_{2,s}\,e^{i(\theta-2\theta_+)}.
+\end{align}
+Each operator $e^{i\varphi_\eta}$ increments the valley-$\eta$ occupation
+$l_\eta\to l_\eta+1$, shifting the quantum numbers
+$(L,\,L_+,\,L_-)$ by the $\eta$-th column of the matrix
+\begin{equation}
+  A
+  \;=\;
+  \begin{pmatrix}1&1&1\\1&1&{-2}\\1&{-1}&0\end{pmatrix},
+  \quad
+  \begin{matrix}
+    \leftarrow L \\
+    \leftarrow L_+ \\
+    \leftarrow L_-
+  \end{matrix}
+  \quad
+  \begin{matrix}
+    \uparrow\;\eta{=}0 \\
+    \uparrow\;\eta{=}1 \\
+    \uparrow\;\eta{=}2
+  \end{matrix}.
+\end{equation}
+
+% ---------------------------------------------------------------------------
+\subsection*{Rotor quantum numbers from occupation}
+
+For any state with valley occupancies $n_\eta = n_{\eta\ua}+n_{\eta\da}$
+($n_\eta\in\{0,1,2\}$):
+\begin{equation}
+  \boxed{
+  L \;=\; N_{\rm tot}-3,\qquad
+  L_+ \;=\; n_0+n_1-2n_2,\qquad
+  L_- \;=\; n_0-n_1,
+  }
+  \label{eq:qnums}
+\end{equation}
+where $N_{\rm tot}=n_0+n_1+n_2$ is the total electron number.
+
+% ---------------------------------------------------------------------------
+\subsection*{Decomposition rule}
+
+Every physical state decomposes as
+\begin{equation}
+  \bigl|\{n_{\eta s}\}\bigr\rangle_{\rm phys}
+  \;=\;
+  \bigl|\{n_{\eta s}\}\bigr\rangle_f
+  \;\otimes\;
+  |L,\,L_+,\,L_-\rangle_{\rm rot},
+\end{equation}
+where the \emph{spinon state} $|\{n_{\eta s}\}\rangle_f$ is obtained by
+replacing $d^{\dagger}\to f^{\dagger}$ in the physical state, and the rotor
+quantum numbers are given by \eqref{eq:qnums}.
+The rotor vacuum $\ket{-3,0,0}_{\rm rot}$ corresponds to the empty site
+($N_{\rm tot}=0$); the half-filled state ($N_{\rm tot}=3$) lives in the
+$L=0$ sector.
+
+% ---------------------------------------------------------------------------
+\subsection*{Table of all 64 local states}
+
+{\small
+\begin{longtable}{rp{8.6cm}cc}
+\toprule
+\# & Physical state $|\cdots\rangle_{\rm phys}$
+   & $N_{\rm tot}$
+   & $(L,\;L_+,\;L_-)$ \\
+\midrule
+\endfirsthead
+\multicolumn{4}{l}{\small\emph{(continued from previous page)}} \\[2pt]
+\toprule
+\# & Physical state $|\cdots\rangle_{\rm phys}$
+   & $N_{\rm tot}$
+   & $(L,\;L_+,\;L_-)$ \\
+\midrule
+\endhead
+\midrule
+\multicolumn{4}{r}{\small\emph{continued on next page\ldots}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+
+% ===========================================================================
+% N_tot = 0
+% ===========================================================================
+\rowcolor{gray!10}
+1 & $\empt$ & 0 & $(-3,\;0,\;0)$ \\[3pt]
+\midrule
+
+% ===========================================================================
+% N_tot = 1
+% ===========================================================================
+2 & $\ddag_{0\ua}\empt$
+  & 1 & $(-2,\;1,\;1)$ \\
+3 & $\ddag_{0\da}\empt$
+  & 1 & $(-2,\;1,\;1)$ \\
+4 & $\ddag_{1\ua}\empt$
+  & 1 & $(-2,\;1,\;{-1})$ \\
+5 & $\ddag_{1\da}\empt$
+  & 1 & $(-2,\;1,\;{-1})$ \\
+6 & $\ddag_{2\ua}\empt$
+  & 1 & $(-2,\;{-2},\;0)$ \\
+7 & $\ddag_{2\da}\empt$
+  & 1 & $(-2,\;{-2},\;0)$ \\[3pt]
+\midrule
+
+% ===========================================================================
+% N_tot = 2
+% ===========================================================================
+ 8 & $\ddag_{0\ua}\ddag_{0\da}\empt$
+   & 2 & $(-1,\;2,\;2)$ \\
+ 9 & $\ddag_{0\ua}\ddag_{1\ua}\empt$
+   & 2 & $(-1,\;2,\;0)$ \\
+10 & $\ddag_{0\ua}\ddag_{1\da}\empt$
+   & 2 & $(-1,\;2,\;0)$ \\
+11 & $\ddag_{0\da}\ddag_{1\ua}\empt$
+   & 2 & $(-1,\;2,\;0)$ \\
+12 & $\ddag_{0\da}\ddag_{1\da}\empt$
+   & 2 & $(-1,\;2,\;0)$ \\
+13 & $\ddag_{0\ua}\ddag_{2\ua}\empt$
+   & 2 & $(-1,\;{-1},\;1)$ \\
+14 & $\ddag_{0\ua}\ddag_{2\da}\empt$
+   & 2 & $(-1,\;{-1},\;1)$ \\
+15 & $\ddag_{0\da}\ddag_{2\ua}\empt$
+   & 2 & $(-1,\;{-1},\;1)$ \\
+16 & $\ddag_{0\da}\ddag_{2\da}\empt$
+   & 2 & $(-1,\;{-1},\;1)$ \\
+17 & $\ddag_{1\ua}\ddag_{1\da}\empt$
+   & 2 & $(-1,\;2,\;{-2})$ \\
+18 & $\ddag_{1\ua}\ddag_{2\ua}\empt$
+   & 2 & $(-1,\;{-1},\;{-1})$ \\
+19 & $\ddag_{1\ua}\ddag_{2\da}\empt$
+   & 2 & $(-1,\;{-1},\;{-1})$ \\
+20 & $\ddag_{1\da}\ddag_{2\ua}\empt$
+   & 2 & $(-1,\;{-1},\;{-1})$ \\
+21 & $\ddag_{1\da}\ddag_{2\da}\empt$
+   & 2 & $(-1,\;{-1},\;{-1})$ \\
+22 & $\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 2 & $(-1,\;{-4},\;0)$ \\[3pt]
+\midrule
+
+% ===========================================================================
+% N_tot = 3  (half-filling, L = 0)
+% ===========================================================================
+23 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\ua}\empt$
+   & 3 & $(0,\;3,\;1)$ \\
+24 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\da}\empt$
+   & 3 & $(0,\;3,\;1)$ \\
+25 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{2\ua}\empt$
+   & 3 & $(0,\;0,\;2)$ \\
+26 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{2\da}\empt$
+   & 3 & $(0,\;0,\;2)$ \\
+27 & $\ddag_{0\ua}\ddag_{1\ua}\ddag_{1\da}\empt$
+   & 3 & $(0,\;3,\;{-1})$ \\
+28 & $\ddag_{0\da}\ddag_{1\ua}\ddag_{1\da}\empt$
+   & 3 & $(0,\;3,\;{-1})$ \\
+29 & $\ddag_{0\ua}\ddag_{1\ua}\ddag_{2\ua}\empt$
+   & 3 & $(0,\;0,\;0)$ \\
+30 & $\ddag_{0\ua}\ddag_{1\ua}\ddag_{2\da}\empt$
+   & 3 & $(0,\;0,\;0)$ \\
+31 & $\ddag_{0\ua}\ddag_{1\da}\ddag_{2\ua}\empt$
+   & 3 & $(0,\;0,\;0)$ \\
+32 & $\ddag_{0\ua}\ddag_{1\da}\ddag_{2\da}\empt$
+   & 3 & $(0,\;0,\;0)$ \\
+33 & $\ddag_{0\da}\ddag_{1\ua}\ddag_{2\ua}\empt$
+   & 3 & $(0,\;0,\;0)$ \\
+34 & $\ddag_{0\da}\ddag_{1\ua}\ddag_{2\da}\empt$
+   & 3 & $(0,\;0,\;0)$ \\
+35 & $\ddag_{0\da}\ddag_{1\da}\ddag_{2\ua}\empt$
+   & 3 & $(0,\;0,\;0)$ \\
+36 & $\ddag_{0\da}\ddag_{1\da}\ddag_{2\da}\empt$
+   & 3 & $(0,\;0,\;0)$ \\
+37 & $\ddag_{1\ua}\ddag_{1\da}\ddag_{2\ua}\empt$
+   & 3 & $(0,\;0,\;{-2})$ \\
+38 & $\ddag_{1\ua}\ddag_{1\da}\ddag_{2\da}\empt$
+   & 3 & $(0,\;0,\;{-2})$ \\
+39 & $\ddag_{0\ua}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 3 & $(0,\;{-3},\;1)$ \\
+40 & $\ddag_{0\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 3 & $(0,\;{-3},\;1)$ \\
+41 & $\ddag_{1\ua}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 3 & $(0,\;{-3},\;{-1})$ \\
+42 & $\ddag_{1\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 3 & $(0,\;{-3},\;{-1})$ \\[3pt]
+\midrule
+
+% ===========================================================================
+% N_tot = 4
+% ===========================================================================
+43 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\ua}\ddag_{1\da}\empt$
+   & 4 & $(1,\;4,\;0)$ \\
+44 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\ua}\ddag_{2\ua}\empt$
+   & 4 & $(1,\;1,\;1)$ \\
+45 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\ua}\ddag_{2\da}\empt$
+   & 4 & $(1,\;1,\;1)$ \\
+46 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\da}\ddag_{2\ua}\empt$
+   & 4 & $(1,\;1,\;1)$ \\
+47 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\da}\ddag_{2\da}\empt$
+   & 4 & $(1,\;1,\;1)$ \\
+48 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 4 & $(1,\;{-2},\;2)$ \\
+49 & $\ddag_{0\ua}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\ua}\empt$
+   & 4 & $(1,\;1,\;{-1})$ \\
+50 & $\ddag_{0\ua}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\da}\empt$
+   & 4 & $(1,\;1,\;{-1})$ \\
+51 & $\ddag_{0\ua}\ddag_{1\ua}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 4 & $(1,\;{-2},\;0)$ \\
+52 & $\ddag_{0\ua}\ddag_{1\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 4 & $(1,\;{-2},\;0)$ \\
+53 & $\ddag_{0\da}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\ua}\empt$
+   & 4 & $(1,\;1,\;{-1})$ \\
+54 & $\ddag_{0\da}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\da}\empt$
+   & 4 & $(1,\;1,\;{-1})$ \\
+55 & $\ddag_{0\da}\ddag_{1\ua}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 4 & $(1,\;{-2},\;0)$ \\
+56 & $\ddag_{0\da}\ddag_{1\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 4 & $(1,\;{-2},\;0)$ \\
+57 & $\ddag_{1\ua}\ddag_{1\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 4 & $(1,\;{-2},\;{-2})$ \\[3pt]
+\midrule
+
+% ===========================================================================
+% N_tot = 5
+% ===========================================================================
+58 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\ua}\empt$
+   & 5 & $(2,\;2,\;0)$ \\
+59 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\da}\empt$
+   & 5 & $(2,\;2,\;0)$ \\
+60 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\ua}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 5 & $(2,\;{-1},\;1)$ \\
+61 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 5 & $(2,\;{-1},\;1)$ \\
+62 & $\ddag_{0\ua}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 5 & $(2,\;{-1},\;{-1})$ \\
+63 & $\ddag_{0\da}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 5 & $(2,\;{-1},\;{-1})$ \\[3pt]
+\midrule
+
+% ===========================================================================
+% N_tot = 6  (full)
+% ===========================================================================
+\rowcolor{gray!10}
+64 & $\ddag_{0\ua}\ddag_{0\da}\ddag_{1\ua}\ddag_{1\da}\ddag_{2\ua}\ddag_{2\da}\empt$
+   & 6 & $(3,\;0,\;0)$ \\
+
+\end{longtable}
+}% end \small
+
+% ---------------------------------------------------------------------------
+\subsection*{Notes on the table}
+
+\paragraph{Spinon state.}
+The spinon--rotor form of row $i$ is
+\begin{equation}
+  |\text{row }i\rangle_{\rm phys}
+  \;=\;
+  \bigl(\text{replace }d^{\dagger}\to f^{\dagger}
+        \text{ in column 2}\bigr)
+  \;\otimes\;
+  |L,\,L_+,\,L_-\rangle_{\rm rot}.
+\end{equation}
+
+\paragraph{Degeneracy.}
+Many spinon states in the same $N_{\rm tot}$ sector share identical rotor
+quantum numbers: these differ only in \emph{spin} or \emph{valley} assignment
+of the spinons (e.g.\ rows 9--12 all have $(L,L_+,L_-)=(-1,2,0)$).
+This is the key feature of the slave-rotor decomposition: the rotor tracks only
+the \emph{total and relative valley charges}, while spin and intra-valley
+degrees of freedom are carried by the spinons.
+
+\paragraph{Symmetry.}
+The half-filled sector ($N_{\rm tot}=3$, rows 23--42) has $L=0$.
+The fully filled (row 64) and empty (row 1) states both have
+$L_+=L_-=0$ and $|L|=3$, and together with half-filling form the particle--hole
+symmetric points.
+The $S_3$ valley-permutation symmetry acts on $(L_+,L_-)$ but leaves $L$ invariant.
+
+\paragraph{Interaction Hamiltonian in the diagonal basis.}
+The coefficients in $H_{\rm int}$ can be read off from \eqref{eq:Lbasis}:
+using $l_\eta = n_\eta-1$ and expanding,
+\begin{align}
+  U\frac{1}{2N}\sum_{i}\hat{n}_i(\hat{n}_i-1)
+  &=
+  \frac{U}{6}(1+2\alpha)\,L^2
+  +\frac{U}{12}(1-\alpha)\,L_+^2
+  +\frac{U}{4}(1-\alpha)\,L_-^2 \notag \\
+  &\quad + \text{const}.
+\end{align}
+At $\alpha=1$ (isotropic SU(6)) only $L^2$ appears, recovering the
+single-rotor description.
+At $\alpha=0$ (maximal anisotropy) the three valleys become independent
+($L,L_+,L_-$ decouple with equal coefficients $U/6$).
+
+\end{document}

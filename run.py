@@ -34,11 +34,27 @@ Fixed solver settings (edit here to change globally)
 -----------------------------------------------------
     N         = 6      (three valleys × two spins)
     t_perp    = 0      (1D cosine DOS: e = -2 cos kx, bandwidth 4)
-    M_trunc   = 15     (3D dim = 31^3 = 29,791 for alpha < 1)
+    M_trunc   = 15     (1D dim = 31;  3D dim = 31^3 = 29,791 for alpha < 1)
     mixing    = 0.5
-    iterations= 800
-    tol       = 1e-8
-    n_eigs    = 30
+    tol       = 1e-8   (outer convergence threshold)
+
+Iteration limits (alpha-dependent)
+------------------------------------
+    alpha = 1  (1D rotor, eigsh ~ms):   max 800 iterations — no issue
+    alpha < 1  (3D rotor, eigsh ~47s at M=15):
+        Each outer iteration costs ~12 min with n_coarse_h=7, tol_h=1e-2.
+        Budget: typical metallic point converges in ~30–50 iter (~7 h);
+                near-critical may need ~100 iter (~20 h, within 24 h limit).
+        Setting ITERATIONS_3D = 100 keeps every job under 24 h.
+        Do NOT set this to 800 for alpha < 1 — that is ~800 × 12 min = 160 h.
+
+n_coarse_h / tol_h
+--------------------
+    For the h-solve (rotor constraint), <L>(h) is strictly monotone so only
+    ONE root exists.  A coarse grid of 7 points always brackets it.
+    Brentq then refines to tol_h=1e-2, which needs ~8 eigsh evaluations.
+    Total per h-solve: 7+8 = 15 eigsh calls.  The outer loop corrects any
+    residual error from the loose inner tolerance.
 """
 
 import sys
@@ -63,20 +79,21 @@ from slave_rotor_generic import solve_generic_MF, _T0_density_table
 # ---------------------------------------------------------------------------
 # Fixed solver settings
 # ---------------------------------------------------------------------------
-N          = 6.0
-T_PERP     = 0          # 1D cosine DOS  (None = flat DOS)
-M_TRUNC    = 15         # 3D dim = 31^3 = 29,791
-MIXING     = 0.5
-ITERATIONS = 800
-TOL        = 1e-8
-H_WINDOW   = 25.0
-EPS_WINDOW = 25.0
-N_COARSE   = 51         # for spinon density solve (cheap)
-# n_coarse_h and tol_h are left at auto-defaults:
-#   alpha=1  : n_coarse_h = 51,  tol_h = 1e-8
-#   alpha<1  : n_coarse_h = 9,   tol_h = 1e-2
-N_EIGS     = 30
-K_INIT     = 2.0
+N              = 6.0
+T_PERP         = 0          # 1D cosine DOS  (None = flat DOS)
+M_TRUNC        = 15         # 3D dim = 31^3 = 29,791
+MIXING         = 0.5
+ITERATIONS_1D  = 800        # alpha=1  (1D rotor, ~ms/iter)
+ITERATIONS_3D  = 100        # alpha<1  (3D rotor, ~12 min/iter at M=15)
+TOL            = 1e-8       # outer convergence threshold
+H_WINDOW       = 25.0
+EPS_WINDOW     = 25.0
+N_COARSE       = 51         # coarse grid for the eps_0 (density) solve — cheap
+N_COARSE_H_1D  = 51         # coarse grid for h-solve, 1D rotor (cheap)
+N_COARSE_H_3D  = 7          # coarse grid for h-solve, 3D rotor — 7 × eigsh per scan
+TOL_H_3D       = 1e-2       # brentq tol for 3D h-solve: ~8 eigsh per refinement
+N_EIGS         = 30
+K_INIT         = 2.0
 
 # Set True to include per-iteration histories in the saved file.
 # These can be large (~MB) for 800 iterations; False keeps files small.
@@ -153,6 +170,14 @@ def main():
     # ------------------------------------------------------------------
     # Build parameter dict
     # ------------------------------------------------------------------
+    # Alpha-dependent settings: 3D rotor is ~47 s/eigsh at M=15.
+    # Each outer iteration costs n_coarse_h + ~8 brentq = 15 eigsh calls.
+    # 15 × 47s ≈ 12 min/iter → cap at 100 iter (< 24 h cluster limit).
+    is_3d       = (alpha < 1.0)
+    iterations  = ITERATIONS_3D  if is_3d else ITERATIONS_1D
+    n_coarse_h  = N_COARSE_H_3D  if is_3d else N_COARSE_H_1D
+    tol_h       = TOL_H_3D       if is_3d else TOL
+
     pars = {
         'U':          U,
         'alpha':      alpha,
@@ -163,11 +188,13 @@ def main():
         'K_init':     K_INIT,
         'M_trunc':    M_TRUNC,
         'mixing':     MIXING,
-        'iterations': ITERATIONS,
+        'iterations': iterations,
         'tol':        TOL,
         'h_window':   H_WINDOW,
         'eps_window': EPS_WINDOW,
         'n_coarse':   N_COARSE,
+        'n_coarse_h': n_coarse_h,
+        'tol_h':      tol_h,
         'n_eigs':     N_EIGS,
         'verbose':    0,
     }
