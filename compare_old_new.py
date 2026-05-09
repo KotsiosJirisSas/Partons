@@ -2,59 +2,53 @@
 compare_old_new.py
 ==================
 Compare old_code.py vs slave_rotor_generic.py at alpha=1, half-filling,
-for both (a) flat DOS and (b) 2D cosine DOS.
+for both (a) flat DOS and (b) 1D cosine DOS.
 
-Goal: Find U_c in each code and check whether they agree once bandwidth units
-      are matched.
-
-Key differences between the two implementations:
--------------------------------------------------
+Analysis of the K-formula discrepancy
+--------------------------------------
 OLD CODE (old_code.py, solver_3):
-  - 3D rotor Hilbert space (L, L_-, L_+) basis
-  - K = sqrt(Z) * (1/D) * int_{-D}^{D} eps * n_F(Z*eps) d_eps
-    = Q * (1/D) * int_{-D}^{D} eps * n_F(Q^2*eps) d_eps
-    This corresponds to N_eff = 1 effective flavor coupling to the rotor.
-  - Grand-canonical: no explicit density constraint; uses mu_eff=0 (half-filling)
-  - Iterates Z=Q^2 directly
-  - Bandwidth: full bandwidth = 2*D (D is the half-bandwidth parameter)
 
-NEW CODE (slave_rotor_generic.py, solve_generic_MF):
-  - 1D rotor Hilbert space for alpha=1 (dim = 2*M+1)
-  - K = 2*N*Q*I1 = 12*Q * int D(eps) eps n_F(Q^2*eps + eps_0 - h) d_eps
-    This correctly accounts for all N=6 flavors coupling to the rotor.
-  - Fixed-density: finds eps_0 and h self-consistently
-  - Iterates K directly
-  - Flat DOS: t_perp=None  ->  eps in [-1, 1], D(eps)=1/2, full bandwidth=2
-  - Cosine DOS: t_perp given  -> 2D dispersion
+    K_old = sqrt(Z) * _DOS_Integral(D, Z, beta)
+          = Q * (1/D) * int_{-D}^{D} eps n_F(Q^2*eps) d_eps     [D = half-bandwidth]
 
-Expected discrepancy:
-  K_new / K_old = 6  (factor of N = 6 missing from old code).
-  This shifts U_c by a factor: U_c_new = 6 * U_c_old * (same_bandwidth_units).
-  Equivalently, U_c / bandwidth should differ by factor 6 between old and new.
+  This corresponds to N_eff = 1: only ONE effective spinon channel drives K.
 
-Linearised Florens-Georges formula (flat DOS, bandwidth W):
-  U_c = N_eff * W / 4
-  New (correct): N_eff = N = 6  ->  U_c = 6*W/4 = 1.5*W
-  Old (buggy):   N_eff = 1      ->  U_c = W/4
+NEW CODE (slave_rotor_generic.py, solve_generic_MF, alpha=1):
 
-Test:
-  Both codes are run with the SAME bandwidth: W = 2 (half-bandwidth = 1).
-  Old:  D = 1.0  ->  bandwidth = 2.
-  New:  t_perp = None  ->  flat DOS on [-1, 1], bandwidth = 2.
+    K_new = 2 * N * Q * I1 = 12 * Q * int D(eps) eps n_F(Q^2*eps + eps_0-h) d_eps
+
+  For half-filling: eps_0 = h = 0 by symmetry, so:
+    K_new = 12 * Q * int D(eps) eps n_F(Q^2*eps) d_eps
+
+With the same bandwidth (W = 2D):
+    K_new / K_old = 12 * D * int D(eps) eps n_F(Q^2*eps) d_eps
+                    / [(1/D) * int_{-D}^{D} eps n_F(Q^2*eps) d_eps]
+                  = 12 * D * [int D(eps) eps n_F d_eps]
+                    / [(1/D) * int_{-D}^{D} eps n_F d_eps]
+
+  For flat DOS: D(eps) = 1/(2D), so int D(eps) eps d_eps = (1/(2D)) int_{-D}^{D} eps d_eps
+    => K_new / K_old = 12 * D * (1/(2D)) / (1/D) = 12 * D / (2D) * D = 6.
+
+  So K_new = 6 * K_old, regardless of bandwidth.
+
+Expected physical consequence:
+    The Florens-Georges formula U_c = N_eff * W / 4 gives:
+      New code (N_eff=6): U_c_new = 6*W/4 = 1.5*W
+      Old code (N_eff=1): U_c_old = 1*W/4 = 0.25*W
+      Ratio: U_c_new / U_c_old = 6
 
 Usage:
     python compare_old_new.py
 """
 import sys, os
 import numpy as np
-import traceback
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 # ============================================================
-# Import old code helpers (extracted, no side-effects)
+# Import old-code pieces (no side-effects at import)
 # ============================================================
 from old_code import (
     _fermi        as old_fermi,
@@ -68,69 +62,68 @@ from old_code import (
 # ============================================================
 # Import new code
 # ============================================================
-from slave_rotor_generic import solve_generic_MF
+from slave_rotor_generic import solve_generic_MF, _T0_density_table
 
 # ============================================================
-# Helper: run old solver at half-filling (mu=0) for one (U, D)
+# Fast old-code run: alpha=1, half-filling, 3D rotor
 # ============================================================
 
-def old_solver_halffill(U, alpha, D, beta, Z_in=0.9, M_cut=12,
-                        iterations=800, threshold=1e-8, verbose=False):
+def old_solver_halffill(U, alpha, D, beta, Z_in=0.9, M_cut=6,
+                        iterations=500, threshold=1e-8):
     """
-    Run old_code's 3-valley solver at half-filling.
-    Returns final Z (=Q^2).
+    Stripped-down version of solver_3 from old_code.py.
+    Operates the 3D rotor even for alpha=1 (original behaviour).
+    Returns final (Z, Kappa).
+
+    NOTE: Ham_construction_3 uses *dense* eigh for finite beta.
+    Keep M_cut <= 6 (dim = 13^3 = 2197) to stay fast.
     """
     import scipy.sparse as sparse
-    from scipy.sparse.linalg import eigsh
 
-    Zs = [Z_in]
-    Kappas = [old_K_calculator(D=D, Z=Z_in, beta=beta)]
+    Zs     = [float(Z_in)]
+    K_last = old_K_calculator(D=D, Z=float(Z_in), beta=beta)
 
     for i in range(iterations):
-        Z_in    = Zs[-1]
-        Kappa   = Kappas[-1]
+        Z_cur = Zs[-1]
+        K_cur = old_K_calculator(D=D, Z=Z_cur, beta=beta)
 
         if i == 0:
             H, (Cos1, Cos2, Cos3) = Ham_construction_3(
-                U, alpha, M_cut, Kappa, construct_obs=True)
+                U, alpha, M_cut, K_cur, construct_obs=True)
         else:
-            H = Ham_construction_3(U, alpha, M_cut, Kappa,
+            H = Ham_construction_3(U, alpha, M_cut, K_cur,
                                    construct_obs=False)
 
         if beta == 'inf':
+            # eigsh with k=1 (only GS needed)
             [Q1, Q2, Q3] = _calc_GS_obs(H, Os=[Cos1, Cos2, Cos3])
         else:
             Q1 = _calc_thermal_obs(H=H, beta=beta, O=Cos1)
             Q2 = _calc_thermal_obs(H=H, beta=beta, O=Cos2)
             Q3 = _calc_thermal_obs(H=H, beta=beta, O=Cos3)
 
-        Z_new   = Q1 ** 2          # use valley-0 cos; by S_3 sym all equal
-        K_new   = old_K_calculator(D=D, Z=Z_new, beta=beta)
-        delta   = abs(Z_new - Zs[-1])
-
-        if verbose and i % 20 == 0:
-            print(f"  old iter {i+1:4d}: Z={Z_new:.6f} K={K_new:.4f} delta={delta:.2e}")
-
+        Z_new  = float(Q1 ** 2)
+        delta  = abs(Z_new - Z_cur)
         Zs.append(Z_new)
-        Kappas.append(K_new)
 
         if delta < threshold:
-            if verbose:
-                print(f"  old converged at iter {i+1}, Z={Z_new:.6f}")
             break
 
-    return Zs[-1], Kappas[-1], len(Zs) - 1
+    return Zs[-1], old_K_calculator(D=D, Z=Zs[-1], beta=beta), len(Zs)
 
 
 # ============================================================
-# Helper: run new solver at half-filling
+# New-code run: alpha=1, half-filling (density=0.5)
 # ============================================================
 
-def new_solver_halffill(U, alpha, t_perp, beta, M_trunc=12, verbose=False):
+_T0_TABLE_CACHE = {}   # keyed by t_perp to avoid recomputing
+
+def new_solver_halffill(U, alpha, t_perp, beta, M_trunc=8):
     """
-    Run solve_generic_MF at density=0.5 (half-filling).
-    Returns dict from solve_generic_MF.
+    Call solve_generic_MF at density=0.5 with alpha=1.
+    For alpha=1 the rotor Hilbert space is 1D (dim = 2*M_trunc+1 = 17).
     """
+    global _T0_TABLE_CACHE
     pars = {
         'U':          U,
         'alpha':      alpha,
@@ -146,209 +139,197 @@ def new_solver_halffill(U, alpha, t_perp, beta, M_trunc=12, verbose=False):
         'h_window':   20.0,
         'eps_window': 20.0,
         'n_coarse':   51,
-        'n_coarse_h': 51,   # alpha=1 -> 1D rotor, 51 is fine
+        'n_coarse_h': 51,   # alpha=1 -> 1D rotor, cheap
         'tol_h':      1e-8,
-        'n_eigs':     30,
+        'n_eigs':     20,
         'verbose':    0,
     }
-    # T=0 table when beta='inf'
     if beta == 'inf':
-        from slave_rotor_generic import _T0_density_table
-        pars['t0_table'] = _T0_density_table(
-            t_perp=t_perp,
-            density_grid=np.linspace(0.0, 1.0, 4001),
-            N_k=1000,
-            N_e=4000,
-        )
-    result = solve_generic_MF(pars)
-    return result
+        key = t_perp
+        if key not in _T0_TABLE_CACHE:
+            print(f"    (building T=0 table for t_perp={t_perp}...)", flush=True)
+            _T0_TABLE_CACHE[key] = _T0_density_table(
+                t_perp=t_perp,
+                density_grid=np.linspace(0.0, 1.0, 4001),
+                N_k=1000,
+                N_e=4000,
+            )
+        pars['t0_table'] = _T0_TABLE_CACHE[key]
+
+    return solve_generic_MF(pars)
 
 
 # ============================================================
-# Scan U and find Z(U) in both codes
+# Locate U_c by linear interpolation
 # ============================================================
 
-def scan_Z_vs_U(U_vals, alpha, D_old, t_perp_new, beta,
-                M_cut=12, M_trunc=12, verbose=True):
+def find_Uc(U_vals, Z_vals, threshold=2e-3):
+    """Interpolate U_c where Z passes through `threshold` on the way down."""
+    metal = Z_vals > threshold
+    if not np.any(metal) or np.all(metal):
+        return np.nan
+    last_m = np.where(metal)[0][-1]
+    if last_m + 1 >= len(U_vals):
+        return np.nan
+    Um, Zm = U_vals[last_m],     Z_vals[last_m]
+    Ui, Zi = U_vals[last_m + 1], Z_vals[last_m + 1]
+    if Zm == Zi:
+        return (Um + Ui) / 2
+    return Um + (threshold - Zm) * (Ui - Um) / (Zi - Zm)
+
+
+# ============================================================
+# Run a scan
+# ============================================================
+
+def run_scan(label, U_vals, alpha, D_old, t_perp_new, beta,
+             M_old=5, M_new=8):
     """
-    Scan U for both old and new codes, return arrays of Z.
+    Scan U_vals for old and new codes.
+    M_old : M_cut for old code  (dim = (2*M_old+1)^3 — keep <= 5 for speed)
+    M_new : M_trunc for new code (alpha=1 -> dim = 2*M_new+1 — any size)
     """
-    Z_old  = np.full(len(U_vals), np.nan)
-    Z_new  = np.full(len(U_vals), np.nan)
-    conv_new = np.zeros(len(U_vals), dtype=bool)
+    print(f"\n{'='*70}")
+    print(f"{label}")
+    print(f"  Old: 3D rotor, dim={(2*M_old+1)**3}, D={D_old}"
+          f"  (flat DOS bandwidth={2*D_old:.2g})")
+    print(f"  New: 1D rotor, dim={2*M_new+1}, t_perp={t_perp_new}"
+          f"  (alpha=1 isotropic)")
+    print(f"{'='*70}", flush=True)
+
+    Z_old = np.full(len(U_vals), np.nan)
+    Z_new = np.full(len(U_vals), np.nan)
+    conv  = np.zeros(len(U_vals), dtype=bool)
 
     for j, U in enumerate(U_vals):
-        # --- old code ---
+        # ---------- old ----------
         try:
-            z_o, k_o, n_iter_o = old_solver_halffill(
+            z_o, k_o, nit_o = old_solver_halffill(
                 U=U, alpha=alpha, D=D_old, beta=beta,
-                M_cut=M_cut, verbose=False)
+                M_cut=M_old, iterations=500, threshold=1e-7)
             Z_old[j] = z_o
         except Exception as e:
-            if verbose:
-                print(f"  [old] U={U:.3f} ERROR: {e}")
+            print(f"  [old] U={U:.3f} ERROR: {e}")
 
-        # --- new code ---
+        # ---------- new ----------
         try:
             res = new_solver_halffill(
                 U=U, alpha=alpha, t_perp=t_perp_new,
-                beta=beta, M_trunc=M_trunc)
-            Z_new[j]    = res['Z']
-            conv_new[j] = res['converged']
+                beta=beta, M_trunc=M_new)
+            Z_new[j]  = res['Z']
+            conv[j]   = res['converged']
         except Exception as e:
-            if verbose:
-                print(f"  [new] U={U:.3f} ERROR: {e}")
-                traceback.print_exc()
+            print(f"  [new] U={U:.3f} ERROR: {e}")
 
-        if verbose:
-            print(f"U={U:6.3f}  Z_old={Z_old[j]:.5f}  Z_new={Z_new[j]:.5f}"
-                  f"  conv_new={conv_new[j]}")
+        print(f"  U={U:6.3f}  Z_old={Z_old[j]:.5f}  "
+              f"Z_new={Z_new[j]:.5f}  conv_new={conv[j]}", flush=True)
 
-    return Z_old, Z_new, conv_new
+    return Z_old, Z_new, conv
 
 
 # ============================================================
-# Find U_c from Z(U) array
-# ============================================================
-
-def find_Uc(U_vals, Z_vals, threshold=1e-3):
-    """
-    Return U_c as the largest U where Z > threshold.
-    Returns nan if all Z < threshold (fully insulating) or
-    all Z > threshold (fully metallic in the range).
-    """
-    metal_mask = Z_vals > threshold
-    if not np.any(metal_mask):
-        return np.nan
-    if np.all(metal_mask):
-        return np.nan
-    # Last metallic point
-    last_metal = np.where(metal_mask)[0][-1]
-    if last_metal + 1 >= len(U_vals):
-        return np.nan
-    # Linear interpolation between last metal and first insulator
-    U_m, Z_m = U_vals[last_metal],     Z_vals[last_metal]
-    U_i, Z_i = U_vals[last_metal + 1], Z_vals[last_metal + 1]
-    if Z_m == Z_i:
-        return (U_m + U_i) / 2
-    return U_m + (threshold - Z_m) * (U_i - U_m) / (Z_i - Z_m)
-
-
-# ============================================================
-# Main comparison
+# Main
 # ============================================================
 
 def main():
-    ALPHA = 1.0   # isotropic: only 1D rotor -> fast
-    BETA  = 'inf' # T = 0
+    ALPHA = 1.0
+    BETA  = 'inf'        # T=0 for sharpest U_c
 
-    # ---------------------------------------------------------------------------
-    # (a) Flat DOS
-    #   Old code:  D = 1  ->  flat DOS on [-1, 1], bandwidth = 2
-    #   New code:  t_perp = None  ->  flat DOS on [-1, 1], bandwidth = 2
-    #   Same bandwidth! Pure factor-of-N check.
-    # ---------------------------------------------------------------------------
-    print("=" * 70)
-    print("(a) Flat DOS  |  alpha=1  |  beta=inf  |  half-filling")
-    print(f"    Old code: D=1.0  (flat DOS bandwidth = 2)")
-    print(f"    New code: t_perp=None (flat DOS bandwidth = 2)")
-    print("=" * 70)
+    # ------------------------------------------------------------------
+    # (a) Flat DOS  — same bandwidth in both codes
+    # Old code:  D=1 -> flat DOS on [-1,+1], full bandwidth W=2
+    # New code:  t_perp=None -> flat DOS on [-1,+1], full bandwidth W=2
+    # Both codes use *exactly* the same D(eps).
+    # Only the K prefactor (N_eff) differs.
+    # ------------------------------------------------------------------
+    W_flat   = 2.0      # common bandwidth
+    U_flat   = np.concatenate([
+        np.linspace(0.1, 1.5, 12),    # below expected U_c_old ~ 0.5
+        np.linspace(1.5, 4.5, 20),    # bracketing U_c_new ~ 3
+    ])
+    U_flat = np.unique(U_flat)
 
-    # Scan U
-    # New U_c ~ 6*W/4 = 6*2/4 = 3  (Florens-Georges, correct, N=6)
-    # Old U_c ~ 1*W/4 = 2/4   = 0.5 (missing N factor)
-    # Use a range that covers both
-    U_vals_flat = np.linspace(0.1, 10.0, 50)
-
-    print(f"\nScanning {len(U_vals_flat)} U values in [{U_vals_flat[0]:.2f}, {U_vals_flat[-1]:.2f}]...")
-    Z_old_flat, Z_new_flat, conv_flat = scan_Z_vs_U(
-        U_vals=U_vals_flat,
-        alpha=ALPHA,
-        D_old=1.0,
-        t_perp_new=None,
-        beta=BETA,
-        M_cut=12,
-        M_trunc=12,
-        verbose=True,
+    Z_old_flat, Z_new_flat, _ = run_scan(
+        "(a) Flat DOS  |  alpha=1  |  beta=inf  |  half-filling",
+        U_vals=U_flat, alpha=ALPHA,
+        D_old=1.0, t_perp_new=None,
+        beta=BETA, M_old=5, M_new=8,
     )
 
-    Uc_old_flat = find_Uc(U_vals_flat, Z_old_flat)
-    Uc_new_flat = find_Uc(U_vals_flat, Z_new_flat)
-    W_flat = 2.0   # bandwidth
+    Uc_old_flat = find_Uc(U_flat, Z_old_flat)
+    Uc_new_flat = find_Uc(U_flat, Z_new_flat)
 
-    print(f"\n--- Flat DOS results ---")
-    print(f"  U_c (old code): {Uc_old_flat:.4f}  (U_c/W = {Uc_old_flat/W_flat:.4f})")
-    print(f"  U_c (new code): {Uc_new_flat:.4f}  (U_c/W = {Uc_new_flat/W_flat:.4f})")
-    print(f"  Florens-Georges prediction: U_c/W = N/4 = {6/4:.4f} (N=6)")
-    print(f"  Ratio U_c_new / U_c_old: {Uc_new_flat/Uc_old_flat:.4f}  (expected: {6:.1f})")
+    print(f"\n--- Flat DOS  (W = {W_flat}) ---")
+    print(f"  U_c  old : {Uc_old_flat:.3f}   U_c/W = {Uc_old_flat/W_flat:.4f}  "
+          f"(FG prediction for N_eff=1: {1/4:.4f})")
+    print(f"  U_c  new : {Uc_new_flat:.3f}   U_c/W = {Uc_new_flat/W_flat:.4f}  "
+          f"(FG prediction for N=6:     {6/4:.4f})")
+    ratio_flat = (Uc_new_flat / Uc_old_flat) if (Uc_old_flat and not np.isnan(Uc_old_flat)) else np.nan
+    print(f"  Ratio U_c_new / U_c_old = {ratio_flat:.3f}  (expected 6.0 = N)")
 
-    # ---------------------------------------------------------------------------
-    # (b) Cosine DOS  (2D, t=1, t_perp=0 -> 1D cosine)
-    #   t_perp = 0  gives e(kx,ky) = -2cos(kx) - 0*cos(sqrt(3)*ky)
-    #   which is just 1D: e = -2cos(kx), bandwidth = 4, half-bandwidth = 2
-    #
-    #   Old code with D=2:  flat DOS on [-2,2] is NOT the same as 1D cosine DOS.
-    #   For a fair "same DOS" comparison we use a D value matching the
-    #   cosine-DOS bandwidth: for 1D cosine DOS bandwidth = 4 -> D = 2.
-    #   (This is flat vs cosine DOS comparison, not identical DOSes.)
-    #
-    #   NOTE: run.py uses t_perp=0 (1D cosine). For a proper comparison
-    #   we would need to implement the cosine DOS in old_code too.
-    #   Here we test: new code with 1D cosine DOS (t_perp=0) vs
-    #   old code with flat DOS matching the same bandwidth (D=2).
-    # ---------------------------------------------------------------------------
-    print("\n" + "=" * 70)
-    print("(b) 1D cosine DOS  |  alpha=1  |  beta=inf  |  half-filling")
-    print(f"    New code: t_perp=0  (1D cosine: e=-2cos(kx), bw=4, hbw=2)")
-    print(f"    Old code: D=2.0  (flat DOS, bw=4 -- only approximate match)")
-    print("=" * 70)
+    # ------------------------------------------------------------------
+    # (b) 1D cosine DOS for new code  |  matching flat-DOS for old code
+    # New: t_perp=0 -> e(kx)=-2cos(kx), bandwidth W=4, half-bandwidth 2
+    # Old: D=2 -> flat DOS, same bandwidth W=4
+    # Different DOS shape — shows effect of DOS on U_c/W.
+    # ------------------------------------------------------------------
+    W_cos  = 4.0
+    U_cos  = np.concatenate([
+        np.linspace(0.1, 2.5, 10),
+        np.linspace(2.5, 12.0, 24),
+    ])
+    U_cos = np.unique(U_cos)
 
-    # 1D cosine: U_c(new) ~ N * bw / 4 = 6*4/4 = 6
-    # Old code (N_eff=1, flat D=2): U_c(old) ~ 1*4/4 = 1
-    U_vals_cos = np.linspace(0.1, 14.0, 60)
-
-    print(f"\nScanning {len(U_vals_cos)} U values in [{U_vals_cos[0]:.2f}, {U_vals_cos[-1]:.2f}]...")
-    Z_old_cos, Z_new_cos, conv_cos = scan_Z_vs_U(
-        U_vals=U_vals_cos,
-        alpha=ALPHA,
-        D_old=2.0,
-        t_perp_new=0,
-        beta=BETA,
-        M_cut=12,
-        M_trunc=12,
-        verbose=True,
+    Z_old_cos, Z_new_cos, _ = run_scan(
+        "(b) 1D cosine DOS (new) vs flat DOS D=2 (old)  |  alpha=1  |  beta=inf",
+        U_vals=U_cos, alpha=ALPHA,
+        D_old=2.0, t_perp_new=0,
+        beta=BETA, M_old=5, M_new=8,
     )
 
-    Uc_old_cos = find_Uc(U_vals_cos, Z_old_cos)
-    Uc_new_cos = find_Uc(U_vals_cos, Z_new_cos)
-    W_cos = 4.0   # 1D cosine bandwidth
+    Uc_old_cos = find_Uc(U_cos, Z_old_cos)
+    Uc_new_cos = find_Uc(U_cos, Z_new_cos)
 
-    print(f"\n--- 1D cosine DOS results ---")
-    print(f"  U_c (old code, flat D=2):   {Uc_old_cos:.4f}  (U_c/W = {Uc_old_cos/W_cos:.4f})")
-    print(f"  U_c (new code, 1D cosine):  {Uc_new_cos:.4f}  (U_c/W = {Uc_new_cos/W_cos:.4f})")
-    print(f"  Florens-Georges prediction: U_c/W = N/4 = {6/4:.4f} (N=6)")
+    print(f"\n--- Cosine/flat DOS  (W = {W_cos}) ---")
+    print(f"  U_c  old (flat D=2) : {Uc_old_cos:.3f}   U_c/W = {Uc_old_cos/W_cos:.4f}  "
+          f"(FG N_eff=1: {1/4:.4f})")
+    print(f"  U_c  new (1D cosine): {Uc_new_cos:.3f}   U_c/W = {Uc_new_cos/W_cos:.4f}  "
+          f"(FG N=6 flat: {6/4:.4f}; 1D cosine DOS has Van Hove)")
+    ratio_cos = (Uc_new_cos / Uc_old_cos) if (Uc_old_cos and not np.isnan(Uc_old_cos)) else np.nan
+    print(f"  Ratio U_c_new / U_c_old = {ratio_cos:.3f}")
 
-    # ---------------------------------------------------------------------------
-    # Summary
-    # ---------------------------------------------------------------------------
-    print("\n" + "=" * 70)
-    print("SUMMARY")
-    print("=" * 70)
+    # ------------------------------------------------------------------
+    # Diagnosis
+    # ------------------------------------------------------------------
     print(f"""
-The old code (solver_3 in old_code.py) uses:
-    K = Q * (1/D) * int_{{-D}}^{{D}} eps n_F(Q^2 * eps) d_eps
+{'='*70}
+DIAGNOSIS
+{'='*70}
 
-This corresponds to N_eff = 1 (missing the factor N = 6 for all spinon flavors).
-The correct formula for the 3-valley N=6 model is:
-    K = 12 * Q * int D(eps) eps n_F(Q^2 * eps) d_eps  (alpha=1)
+old_code.py  K update:
+  K = sqrt(Z) * (1/D) * int_{{-D}}^{{D}} eps n_F(Z*eps) d_eps
+  = Q * 2 * int D_flat(eps) eps n_F(Q^2*eps) d_eps          [N_eff = 2? ...]
 
-Expected consequence:
-  U_c_new / U_c_old ≈ 6  (for the same bandwidth)
+  Actually more precisely, for flat DOS with half-bandwidth D:
+    D_flat(eps) = 1/(2D)
+    (1/D) * int_{{-D}}^{{D}} eps n_F(Q^2*eps) d_eps
+    = 2 * int_{{-D}}^{{D}} D_flat(eps) eps n_F(Q^2*eps) d_eps
+    = 2 * I1_old
 
-Flat DOS (bandwidth W=2, both codes):
-  U_c_old = {Uc_old_flat:.3f}  U_c_old/W = {Uc_old_flat/W_flat:.3f}  (expect ~ {1/4:.3f}  [N_eff=1 formula])
-  U_c_new = {Uc_new_flat:.3f}  U_c_new/W = {Uc_new_flat/W_flat:.3f}  (expect ~ {6/4:.3f}  [N=6 formula])
-  Ratio: {Uc_new_flat/Uc_old_flat:.3f}  (expect 6.0)
+  So K_old = 2 * Q * I1_old   where I1_old = int D_flat(eps) eps n_F(Q^2*eps) d_eps.
+
+slave_rotor_generic.py  K update (alpha=1):
+  K_new = 2 * N * Q * I1_new = 12 * Q * I1_new
+  where I1_new = int D(eps) eps n_F(Q^2*eps+eps_0-h) d_eps
+
+At half-filling (eps_0=h=0) with same flat DOS: I1_new = I1_old.
+So:
+  K_new = 12 * Q * I1 = 6 * (2 * Q * I1) = 6 * K_old
+
+Conclusion: old code has N_eff = 2, new code has N_eff = 12.
+Ratio = 6 = N (three valleys × two spins, all coupling to one shared rotor).
+Old code was written for a SINGLE VALLEY (N_eff=2 spins), then reused for 3 valleys
+without updating the K prefactor.
 """)
 
 
