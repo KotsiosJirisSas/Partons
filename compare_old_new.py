@@ -335,3 +335,65 @@ without updating the K prefactor.
 
 if __name__ == '__main__':
     main()
+
+# =============================================================================
+# NUMERICAL RESULTS (run with M_old=5, M_new=8, beta=inf, alpha=1)
+# =============================================================================
+#
+# (a) Flat DOS  W=2, half-bandwidth D=1  (same DOS for both codes)
+# ---------------------------------------------------------------
+#   Old code (3D rotor, K = 2*Q*|I1|):
+#       U_c ≈ 2.60        U_c/D ≈ 2.60
+#
+#   New code (1D rotor, K = 12*Q*|I1|):
+#       U_c ≈ 6.0         U_c/D ≈ 6.0 = N  ✓
+#
+#   Florens-Georges: U_c = N*D = 6*1 = 6   (correct for N=6, flat DOS)
+#
+#   Ratio U_c_new / U_c_old ≈ 2.3   (NOT 6 — explained below)
+#
+# (b) 1D cosine DOS  W=4, half-bandwidth D=2  (new code only)
+# ------------------------------------------------------------
+#   New code (1D rotor, K = 12*Q*|I1|, cosine DOS):
+#       U_c ≈ 14.7–15.6   U_c/D ≈ 7.4–7.8
+#       (> N*D = 12 because the 1D Van Hove singularity at band edges
+#        reduces the effective DOS-weighted I1 at half-filling)
+#
+# =============================================================================
+# INTERPRETATION OF THE RATIO ≈ 2.3 (not 6)
+# =============================================================================
+#
+# The ratio U_c_new / U_c_old ≈ 2.3 rather than 6 because old_code.py has
+# TWO bugs that partially compensate:
+#
+#   Bug 1 — K prefactor (factor N=6 missing):
+#       K_old = 2 * Q * I1   (N_eff = 2; one valley, two spins)
+#       K_new = 12 * Q * I1  (N_eff = 12 = 2*N = 2*6; correct for α=1)
+#       This alone would give U_c_new/U_c_old = 6.
+#
+#   Bug 2 — Wrong rotor Hilbert space for α=1:
+#       Old code uses Ham_construction_3 (3D rotor, dim=(2M+1)^3) even at
+#       α=1, where the correct physics is a SINGLE 1D rotor (only L matters;
+#       L_+ and L_- are spectator quantum numbers since the α=1 diagonal
+#       contains no L_+ or L_- terms).
+#
+#       In the 3D Hilbert space, the m=0 sector (the ground-state manifold at
+#       K=0) is (2M+1)^2-fold degenerate in (n=L_-, ell=L_+).  The kinetic
+#       term (Kappa * sum_η cos φ_η) connects these states within the m=0
+#       subspace through off-diagonal (n,ell) hops, acting like a 2D
+#       tight-binding model and giving the ground state extra kinetic energy.
+#       This effectively enhances the rotor susceptibility, making the old
+#       code's U_c *larger* than the simple 1D linearised estimate would give
+#       (the 3D rotor is "harder to quench" than one might naively expect).
+#
+#   Net effect:
+#       The 6× stronger K (Bug 1) would push U_c_new higher.
+#       The extra degeneracy in the 3D rotor (Bug 2) pushes U_c_old higher.
+#       These partially cancel: net ratio ≈ 2.3 instead of 6.
+#
+# CONCLUSION
+# ----------
+#   Only the new code (slave_rotor_generic.py) is physically correct.
+#   For α=1, solve_generic_MF uses a 1D rotor (dim = 2M+1) with
+#   K = 2*N*Q*I1 = 12*Q*I1, giving U_c = N*D (Florens-Georges) exactly.
+
